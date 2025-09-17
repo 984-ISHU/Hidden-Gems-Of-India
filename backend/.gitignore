@@ -1,0 +1,11 @@
+_pycache_/
+*.pyc
+*.pyo
+*.pyd
+.env
+venv/
+.idea/
+.vscode/
+.mypy_cache/
+.pytest_cache/
+postgres_data/
