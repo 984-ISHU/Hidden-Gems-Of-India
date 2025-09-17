@@ -1,19 +1,21 @@
 from fastapi import FastAPI
-from app.db import Base, engine
+from app.db.session import db  # ensures Mongo connection is initialized
 from app.routers import (
     auth, users, artisans, products, orders,
     marketing, analytics, subscriptions,
     connections, recommendations, assistant
 )
 
-# Create database tables (for dev only; in prod use Alembic)
-Base.metadata.create_all(bind=engine)
-
 app = FastAPI(title="Hidden Gems of India API", version="1.0.0")
 
 @app.get("/health")
-def health_check():
-    return {"status": "ok"}
+async def health_check():
+    # Optional: ping MongoDB to confirm connection
+    try:
+        await db.command("ping")
+        return {"status": "ok", "db": "connected"}
+    except Exception as e:
+        return {"status": "error", "db": str(e)}
 
 # Register routers with a common prefix
 api_prefix = "/api/v1"
