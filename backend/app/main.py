@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from app.db import db  # ensures Mongo connection is initialized
-from app.routers import artisans
+from app.routers import artisans, users
 
 app = FastAPI(title="Hidden Gems of India API", version="1.0.0")
 
@@ -24,7 +24,7 @@ async def health_check():
 # Register routers with a common prefix
 api_prefix = "/api/v1"
 # app.include_router(auth.router, prefix=api_prefix)
-# app.include_router(users.router, prefix=api_prefix)
+app.include_router(users.router, prefix=api_prefix)
 app.include_router(artisans.router, prefix=api_prefix)
 # app.include_router(products.router, prefix=api_prefix)
 # app.include_router(orders.router, prefix=api_prefix)
