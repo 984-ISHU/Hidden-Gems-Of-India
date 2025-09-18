@@ -1,4 +1,4 @@
-_pycache_/
+__pycache__/
 *.pyc
 *.pyo
 *.pyd
@@ -10,4 +10,3 @@ venv/
 .pytest_cache/
 postgres_data/
 .venv/
-/_pycache_/

@@ -4,7 +4,7 @@ from typing import List, Optional, Dict
 import logging
 from app.services.product_description_gen import generate_description
 
-router = APIRouter(prefix="/product-description", tags=["Product Description"])
+router = APIRouter(prefix="/product-description", tags=["Marketing"])
 logger = logging.getLogger(__name__)
 
 # Request models
