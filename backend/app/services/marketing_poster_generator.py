@@ -2,8 +2,13 @@ from google import genai
 from google.genai import types
 from PIL import Image
 from io import BytesIO
+import os 
+from dotenv import load_dotenv
+load_dotenv()
 
-client = genai.Client(api_key="AIzaSyDenK8dsy1zHsMAW47A1LPCIDkxdMGqm7c")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
+client = genai.Client(api_key=GEMINI_API_KEY)
 
 def generate_minimal_marketing_poster(image_bytes: bytes, product_name: str = "") -> bytes:
     """
