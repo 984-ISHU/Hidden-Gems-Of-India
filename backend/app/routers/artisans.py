@@ -1,8 +1,10 @@
 from fastapi import APIRouter, HTTPException
 from typing import Dict, Any, List
+from app.models.product import ProductCreate
 from app.services.artisan_service import ArtisanService
-from app.services.marketing_service import MarketingService, rag_service
+from app.services.marketing_service import MarketingService
 from app.models.artisan import ArtisanProfileUpdate
+from fastapi import Query, File, UploadFile
 
 router = APIRouter(prefix="/artisans", tags=["Artisans"])
 
@@ -33,11 +35,11 @@ async def get_artisans_by_location(location: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/{artisan_id}")
-async def get_artisan(artisan_id: str):
-    """Get a single artisan by ID"""
+@router.get("/{user_id}")
+async def get_artisan(user_id: str):
+    """Get a single artisan by user_id"""
     try:
-        artisan = await ArtisanService.get_artisan_by_id(artisan_id)
+        artisan = await ArtisanService.get_artisan_by_user_id(user_id)
         if not artisan:
             raise HTTPException(status_code=404, detail="Artisan not found")
         return artisan
@@ -70,10 +72,10 @@ async def get_artisan_products(artisan_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/{artisan_id}/products")
-async def add_artisan_product(artisan_id: str, product_data: Dict[str, Any]):
+async def add_artisan_product(artisan_id: str, product: ProductCreate):
     """Add a new product for an artisan"""
     try:
-        result = await ArtisanService.add_artisan_product(artisan_id, product_data)
+        result = await ArtisanService.add_artisan_product(artisan_id, product.dict(exclude_unset=True))
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -93,29 +95,15 @@ async def delete_artisan_product(artisan_id: str, product_id: str):
 
 # Marketing and RAG routes
 @router.post("/{artisan_id}/marketing")
-async def get_marketing_output(artisan_id: str, request_data: Dict[str, Any]):
-    """Generate marketing content for an artisan"""
+async def get_marketing_output(
+    artisan_id: str,
+    prompt: str = Query(..., description="Prompt for marketing content"),
+    image: UploadFile = File(None)
+):
+    """Generate marketing content for an artisan, considering image if provided"""
     try:
-        prompt = request_data.get("prompt", "")
-        if not prompt:
-            raise HTTPException(status_code=400, detail="Prompt is required")
-        
-        result = await MarketingService.generate_marketing_content(artisan_id, prompt)
-        return result
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.post("/{artisan_id}/rag")
-async def get_rag_output(artisan_id: str, request_data: Dict[str, Any]):
-    """Get RAG response for artisan queries"""
-    try:
-        query = request_data.get("query", "")
-        if not query:
-            raise HTTPException(status_code=400, detail="Query is required")
-        
-        result = await rag_service.get_rag_response(artisan_id, query)
+        image_bytes = await image.read() if image else None
+        result = await MarketingService.generate_marketing_content(artisan_id, prompt, image_bytes)
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

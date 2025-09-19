@@ -1,18 +1,19 @@
-from fastapi import APIRouter, HTTPException
-from typing import Dict, Any
-from app.services.marketing_service import rag_service
+
+from fastapi import APIRouter, HTTPException, Query
+from app.services.marketing_service import generate_story_for_artisan
 
 router = APIRouter(tags=["Profile"])
 
-@router.post("/generate-story")
-async def generate_story_from_bio(request_data: Dict[str, Any]):
-    """Generate a story from artisan bio"""
+@router.get("/generate-story")
+async def generate_story_from_bio(
+    artisan_id: str = Query(..., description="Artisan ID"),
+    extra_info: str = Query("", description="Additional info from artisan (optional)")
+):
+    """Generate a story for an artisan using their ID and extra info (query params)."""
     try:
-        bio = request_data.get("bio", "")
-        if not bio:
-            raise HTTPException(status_code=400, detail="Bio is required")
-        
-        result = await rag_service.generate_story_from_bio(bio)
+        if not artisan_id:
+            raise HTTPException(status_code=400, detail="artisan_id is required")
+        result = await generate_story_for_artisan(artisan_id, extra_info)
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

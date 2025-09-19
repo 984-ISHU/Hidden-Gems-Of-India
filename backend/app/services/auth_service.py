@@ -93,15 +93,20 @@ class AuthService:
         
         # Create access token
         access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        if user.get("user_type", "artisan") == "artisan":
+            sub_value = user["user_id"]
+            user_id_value = user["user_id"]
+        else:
+            sub_value = str(user["_id"])
+            user_id_value = str(user["_id"])
         access_token = create_access_token(
-            data={"sub": str(user["_id"]), "user_type": user.get("user_type", "artisan")},
+            data={"sub": sub_value, "user_type": user.get("user_type", "artisan")},
             expires_delta=access_token_expires
         )
-        
         return {
             "access_token": access_token,
             "token_type": "bearer",
-            "user_id": str(user["_id"]),
+            "user_id": user_id_value,
             "user_type": user.get("user_type", "artisan")
         }
     
@@ -119,14 +124,12 @@ class AuthService:
         
         # Get user from appropriate collection
         if user_type == "artisan":
-            user = await db["artisans"].find_one({"_id": ObjectId(user_id)})
+            user = await db["artisans"].find_one({"user_id": user_id})
         else:
             user = await db["users"].find_one({"_id": ObjectId(user_id)})
-        
         if not user:
             raise ValueError("User not found")
-        
-        user["id"] = str(user["_id"])
-        del user["password_hash"]  # Remove password hash from response
-        
+        user["id"] = str(user.get("_id", user.get("user_id", "")))
+        if "password_hash" in user:
+            del user["password_hash"]  # Remove password hash from response
         return user
