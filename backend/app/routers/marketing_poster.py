@@ -25,5 +25,5 @@ async def generate_poster_endpoint(
     return StreamingResponse(
         iter([poster_bytes]),
         media_type="image/jpeg",
-        headers={"Content-Disposition": f"attachment; filename=poster.jpg"}
+        headers={"Content-Disposition": "attachment; filename=poster.jpg"}
     )
