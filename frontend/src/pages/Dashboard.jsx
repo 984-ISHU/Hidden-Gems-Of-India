@@ -1,44 +1,158 @@
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import React, { useEffect, useState } from "react"
+import {
+  getProductsByArtisan,
+  addProduct,
+  deleteProduct,
+  getMarketingOutput,
+  getRAGOutput,
+  getEvents,
+} from "@/lib/api"
 
-export default function Dashboard() {
-  const [products, setProducts] = useState([
-    { id: 1, name: "Handwoven Saree" },
-    { id: 2, name: "Clay Pot" },
-  ]);
+const Dashboard = () => {
+  const [products, setProducts] = useState([])
+  const [events, setEvents] = useState([])
+  const [marketingOutput, setMarketingOutput] = useState(null)
+  const [ragOutput, setRagOutput] = useState(null)
 
-  const addProduct = () => {
-    const newId = products.length + 1;
-    setProducts([...products, { id: newId, name: `Product ${newId}` }]);
-  };
+  const [newProduct, setNewProduct] = useState({
+    name: "",
+    description: "",
+    price: "",
+  })
+
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+
+  // ⚡ replace with logged-in artisan ID
+  const artisanId = "12345"
+
+  // fetch products + events on mount
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true)
+
+        const productsData = await getProductsByArtisan(artisanId)
+        setProducts(productsData)
+
+        const eventsData = await getEvents("India") // default
+        setEvents(eventsData)
+      } catch (err) {
+        setError(err.message)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [artisanId])
+
+  // add new product
+  const handleAddProduct = async (e) => {
+    e.preventDefault()
+    try {
+      const product = await addProduct(artisanId, newProduct)
+      setProducts((prev) => [...prev, product])
+      setNewProduct({ name: "", description: "", price: "" })
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  // delete product
+  const handleDeleteProduct = async (productId) => {
+    try {
+      await deleteProduct(productId)
+      setProducts((prev) => prev.filter((p) => p.id !== productId))
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  // fetch AI outputs
+  const handleGenerateMarketing = async () => {
+    try {
+      const output = await getMarketingOutput(artisanId)
+      setMarketingOutput(output)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  const handleGenerateRAG = async () => {
+    try {
+      const output = await getRAGOutput(artisanId)
+      setRagOutput(output)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
 
   return (
-    <div className="min-h-screen bg-teal-700 text-white p-6">
-      <h1 className="text-2xl font-bold mb-4">Artisan Dashboard</h1>
+    <div>
+      <h1>Dashboard</h1>
+      {error && <p style={{ color: "red" }}>{error}</p>}
+      {loading && <p>Loading...</p>}
 
-      {/* Products */}
-      <div className="flex gap-4 overflow-x-auto pb-4">
+      {/* Products Section */}
+      <h2>Your Products</h2>
+      <ul>
         {products.map((p) => (
-          <Card key={p.id} className="min-w-[150px] bg-yellow-400 text-black">
-            <CardContent className="flex flex-col items-center justify-center h-24">
-              <span className="text-xl">📦</span>
-              <p className="text-sm mt-2">{p.name}</p>
-            </CardContent>
-          </Card>
+          <li key={p.id}>
+            {p.name} - ₹{p.price}{" "}
+            <button onClick={() => handleDeleteProduct(p.id)}>Delete</button>
+          </li>
         ))}
-      </div>
+      </ul>
 
-      <Button className="bg-green-500 mt-4" onClick={addProduct}>
-        + Add Product
-      </Button>
+      <form onSubmit={handleAddProduct}>
+        <input
+          placeholder="Product Name"
+          value={newProduct.name}
+          onChange={(e) =>
+            setNewProduct({ ...newProduct, name: e.target.value })
+          }
+        />
+        <br />
+        <input
+          placeholder="Description"
+          value={newProduct.description}
+          onChange={(e) =>
+            setNewProduct({ ...newProduct, description: e.target.value })
+          }
+        />
+        <br />
+        <input
+          type="number"
+          placeholder="Price"
+          value={newProduct.price}
+          onChange={(e) =>
+            setNewProduct({ ...newProduct, price: e.target.value })
+          }
+        />
+        <br />
+        <button type="submit">Add Product</button>
+      </form>
 
-      {/* Actions */}
-      <div className="grid grid-cols-3 gap-4 mt-6">
-        <Button className="bg-red-600">Create Ads</Button>
-        <Button className="bg-yellow-500 text-black">Chat Bot</Button>
-        <Button className="bg-teal-500">Events</Button>
-      </div>
+      {/* Marketing + RAG */}
+      <h2>AI Generated Content</h2>
+      <button onClick={handleGenerateMarketing}>Generate Marketing Output</button>
+      {marketingOutput && <pre>{JSON.stringify(marketingOutput, null, 2)}</pre>}
+
+      <button onClick={handleGenerateRAG}>Generate RAG Output</button>
+      {ragOutput && <pre>{JSON.stringify(ragOutput, null, 2)}</pre>}
+
+      {/* Events Section */}
+      <h2>Events</h2>
+      <ul>
+        {events.map((e, i) => (
+          <li key={i}>
+            {e["Event Name"]} - {e["Venue of Event"]}
+          </li>
+        ))}
+      </ul>
     </div>
-  );
+  )
 }
+
+export default Dashboard

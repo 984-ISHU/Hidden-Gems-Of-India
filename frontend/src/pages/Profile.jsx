@@ -1,49 +1,138 @@
-import { useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import React, { useEffect, useState } from "react"
+import { getCurrentUser, updateProfile, generateStoryFromBio } from "@/lib/api"
 
-export default function Profile() {
-  const [profile, setProfile] = useState({
-    username: "Aarti Sharma",
-    email: "aarti@example.com",
+const Profile = () => {
+  const [user, setUser] = useState(null)
+  const [form, setForm] = useState({
+    email: "",
     password: "",
-    skill: "Handloom Weaving",
-    location: "Varanasi",
-  });
+    skill: "",
+    location: "",
+    story: "",
+    bio: "",
+  })
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+  const [generatedStory, setGeneratedStory] = useState(null)
 
+  // fetch user profile
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const data = await getCurrentUser()
+        setUser(data)
+        setForm({
+          email: data.email || "",
+          password: "",
+          skill: data.skill || "",
+          location: data.location || "",
+          story: data.story || "",
+          bio: data.bio || "",
+        })
+      } catch (err) {
+        setError(err.message)
+      }
+    }
+    fetchUser()
+  }, [])
+
+  // handle field change
   const handleChange = (e) => {
-    setProfile({ ...profile, [e.target.name]: e.target.value });
-  };
+    setForm({
+      ...form,
+      [e.target.name]: e.target.value,
+    })
+  }
+
+  // save profile updates
+  const handleSave = async (e) => {
+    e.preventDefault()
+    setLoading(true)
+    try {
+      const updatedUser = await updateProfile(form)
+      setUser(updatedUser)
+      alert("Profile updated successfully!")
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // generate story from bio
+  const handleGenerateStory = async () => {
+    try {
+      const story = await generateStoryFromBio(form.bio)
+      setGeneratedStory(story)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  if (!user) return <p>Loading profile...</p>
 
   return (
-    <div className="flex justify-center items-center min-h-screen bg-teal-700">
-      <Card className="w-96 bg-white">
-        <CardContent className="p-6 flex flex-col gap-4">
-          <div className="w-20 h-20 rounded-full bg-gray-300 mx-auto"></div>
-          <Input name="username" value={profile.username} onChange={handleChange} />
-          <Input name="email" value={profile.email} onChange={handleChange} />
-          <Input
-            type="password"
-            name="password"
-            value={profile.password}
-            onChange={handleChange}
-            placeholder="Update Password"
-          />
-          <Input name="skill" value={profile.skill} onChange={handleChange} />
-          <Input name="location" value={profile.location} onChange={handleChange} />
+    <div>
+      <h1>Profile</h1>
+      {error && <p style={{ color: "red" }}>{error}</p>}
 
-          <div className="bg-red-200 p-3 rounded text-center font-semibold">
-            AI Generated Artisan’s Story:  
-            <p className="text-sm italic mt-1">
-              {profile.username} is a skilled {profile.skill} artisan from{" "}
-              {profile.location}.
-            </p>
-          </div>
+      <form onSubmit={handleSave}>
+        <input
+          type="email"
+          name="email"
+          placeholder="Email"
+          value={form.email}
+          onChange={handleChange}
+          required
+        />
+        <br />
+        <input
+          type="password"
+          name="password"
+          placeholder="New Password"
+          value={form.password}
+          onChange={handleChange}
+        />
+        <br />
+        <input
+          name="skill"
+          placeholder="Skill"
+          value={form.skill}
+          onChange={handleChange}
+        />
+        <br />
+        <input
+          name="location"
+          placeholder="Location"
+          value={form.location}
+          onChange={handleChange}
+        />
+        <br />
+        <textarea
+          name="bio"
+          placeholder="Your Bio"
+          value={form.bio}
+          onChange={handleChange}
+        />
+        <br />
+        <textarea
+          name="story"
+          placeholder="Your Story"
+          value={form.story}
+          onChange={handleChange}
+        />
+        <br />
 
-          <Button className="bg-yellow-500 text-black">Save Profile</Button>
-        </CardContent>
-      </Card>
+        <button type="submit" disabled={loading}>
+          {loading ? "Saving..." : "Save Profile"}
+        </button>
+      </form>
+
+      <h2>AI Generated Story</h2>
+      <button onClick={handleGenerateStory}>Generate from Bio</button>
+      {generatedStory && <pre>{JSON.stringify(generatedStory, null, 2)}</pre>}
     </div>
-  );
+  )
 }
+
+export default Profile
