@@ -77,8 +77,8 @@ export const getMarketingOutput = async (artisanId, prompt) => {
   return data
 }
 
-export const getRAGOutput = async (artisanId, query) => {
-  const { data } = await api.post(`/artisans/${artisanId}/rag`, { query })
+export const getRAGOutput = async (query) => {
+  const { data } = await api.post(`/assistant/chat`, { query })
   return data
 }
 

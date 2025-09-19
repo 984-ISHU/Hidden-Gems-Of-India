@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from app.db import db  # ensures Mongo connection is initialized
-from app.routers import artisans, auth, product_description, event_finding, marketing_poster,assistant
+from app.routers import artisans, auth, product_description, event_finding, marketing_poster, assistant, profile
 
 app = FastAPI(title="Hidden Gems of India API", version="1.0.0")
 
@@ -29,3 +29,4 @@ app.include_router(product_description.router, prefix=api_prefix)
 app.include_router(event_finding.router, prefix=api_prefix)
 app.include_router(marketing_poster.router, prefix=api_prefix)
 app.include_router(assistant.router, prefix=api_prefix)
+app.include_router(profile.router, prefix=api_prefix)
