@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, field_validator
 from bson import ObjectId
 from typing import List, Dict, Any
-from app.services.rag_chatbot import rag_answer
+from app.services.RAG_chatbot import rag_answer
 
 router = APIRouter(
     prefix="/assistant",

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react"
-import { getCurrentUser, updateProfile, generateStoryFromBio } from "@/lib/api"
+import api from "../lib/api"
 
 const Profile = () => {
   const [user, setUser] = useState(null)
@@ -19,7 +19,7 @@ const Profile = () => {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const data = await getCurrentUser()
+        const data = await api.getCurrentUser()
         setUser(data)
         setForm({
           email: data.email || "",
@@ -49,7 +49,17 @@ const Profile = () => {
     e.preventDefault()
     setLoading(true)
     try {
-      const updatedUser = await updateProfile(form)
+      // Only send fields that are allowed by backend
+      const profileData = {
+        email: form.email,
+        password: form.password || undefined,
+        skill: form.skill,
+        location: form.location,
+        story: form.story,
+        bio: form.bio,
+      }
+      // Use user.id or user._id or user.artisan_id as per backend, here assuming user.id
+      const updatedUser = await api.updateArtisanProfile(user.id, profileData)
       setUser(updatedUser)
       alert("Profile updated successfully!")
     } catch (err) {
@@ -62,7 +72,7 @@ const Profile = () => {
   // generate story from bio
   const handleGenerateStory = async () => {
     try {
-      const story = await generateStoryFromBio(form.bio)
+      const story = await api.generateStoryFromBio()
       setGeneratedStory(story)
     } catch (err) {
       setError(err.message)

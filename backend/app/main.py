@@ -1,8 +1,23 @@
 from fastapi import FastAPI
 from app.db import db  # ensures Mongo connection is initialized
 from app.routers import artisans, auth, product_description, event_finding, marketing_poster, assistant, profile
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="Hidden Gems of India API", version="1.0.0")
+
+
+origins = [
+    "https://gen-mark.vercel.app",  # ✅ Your deployed frontend
+    "http://localhost:5173",           # Optional for local testing
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],     # Allow all methods (GET, POST, etc.)
+    allow_headers=["*"],     # Allow all headers
+)
 
 @app.on_event("startup")
 async def startup_db_client():

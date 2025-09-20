@@ -1,96 +1,191 @@
-import axios from "axios"
+/*
+  api.js (Axios version)
+  Client helper for "Hidden Gems of India" backend APIs
+  - Uses axios for HTTP requests.
+  - Exports named helpers for each endpoint described in the OpenAPI summary.
+  - Handles JSON and multipart/form-data where appropriate.
+*/
 
-const api = axios.create({
-  baseURL: "http://localhost:8000",
-  withCredentials: true, // include cookies if backend uses session auth
-})
+import axios from 'axios'
 
-/* ----------------------------- AUTH ----------------------------- */
-// Signup
-export const signup = async (userData) => {
-  const { data } = await api.post("/auth/signup", userData)
-  return data
+let BASE_URL = 'http://127.0.0.1:8000'
+let accessToken = null
+
+function setBaseUrl(url) {
+  BASE_URL = url.replace(/\/$/, '')
 }
 
-// Login
-export const login = async (credentials) => {
-  const { data } = await api.post("/auth/login", credentials)
-  return data
+function setToken(token) {
+  accessToken = token
 }
 
-// Logout
-export const logout = async () => {
-  const { data } = await api.post("/auth/logout")
-  return data
+function clearToken() {
+  accessToken = null
 }
 
-// Get current logged-in user
-export const getCurrentUser = async () => {
-  const { data } = await api.get("/auth/me")
-  return data
+function client() {
+  const instance = axios.create({
+    baseURL: BASE_URL,
+  })
+  instance.interceptors.request.use(config => {
+    if (accessToken) {
+      config.headers['Authorization'] = `Bearer ${accessToken}`
+    }
+    return config
+  })
+  return instance
 }
 
-/* ----------------------------- ARTISANS ----------------------------- */
-export const getArtisans = async () => {
-  const { data } = await api.get("/artisans")
-  return data
+// ---- Health ----
+async function health() {
+  return client().get('/health').then(r => r.data)
 }
 
-export const getArtisansBySkill = async (skill) => {
-  const { data } = await api.get(`/artisans/skill/${encodeURIComponent(skill)}`)
-  return data
+// ---- Auth ----
+async function signup(data) {
+  return client().post('/api/v1/auth/signup', data).then(r => r.data)
 }
 
-export const getArtisansByLocation = async (location) => {
-  const { data } = await api.get(`/artisans/location/${encodeURIComponent(location)}`)
-  return data
+async function login(data) {
+  const res = await client().post('/api/v1/auth/login', data)
+  if (res.data?.access_token) setToken(res.data.access_token)
+  return res.data
 }
 
-/* ----------------------------- EVENTS ----------------------------- */
-export const getEvents = async (location, date = null) => {
-  const params = {}
-  if (location) params.location = location
-  if (date) params.date = date
-
-  const { data } = await api.get("/events", { params })
-  return data
+async function logout() {
+  const res = await client().post('/api/v1/auth/logout')
+  clearToken()
+  return res.data
 }
 
-/* ----------------------------- DASHBOARD ----------------------------- */
-export const getProductsByArtisan = async (artisanId) => {
-  const { data } = await api.get(`/artisans/${artisanId}/products`)
-  return data
+async function getCurrentUser() {
+  return client().get('/api/v1/auth/me').then(r => r.data)
 }
 
-export const addProduct = async (artisanId, productData) => {
-  const { data } = await api.post(`/artisans/${artisanId}/products`, productData)
-  return data
+// ---- Artisans ----
+async function getArtisans(params = {}) {
+  return client().get('/api/v1/artisans/', { params }).then(r => r.data)
 }
 
-export const deleteProduct = async (artisanId, productId) => {
-  const { data } = await api.delete(`/artisans/${artisanId}/products/${productId}`)
-  return data
+async function getArtisansBySkill(skill) {
+  return client().get(`/api/v1/artisans/skill/${encodeURIComponent(skill)}`).then(r => r.data)
 }
 
-export const getMarketingOutput = async (artisanId, prompt) => {
-  const { data } = await api.post(`/artisans/${artisanId}/marketing`, { prompt })
-  return data
+async function getArtisansByLocation(location) {
+  return client().get(`/api/v1/artisans/location/${encodeURIComponent(location)}`).then(r => r.data)
 }
 
-export const getRAGOutput = async (artisanId, query) => {
-  const { data } = await api.post(`/artisans/${artisanId}/rag`, { query })
-  return data
+async function getArtisan(userId) {
+  return client().get(`/api/v1/artisans/${encodeURIComponent(userId)}`).then(r => r.data)
 }
 
-/* ----------------------------- PROFILE ----------------------------- */
-export const updateProfile = async (artisanId, updates) => {
-  const { data } = await api.patch(`/artisans/${artisanId}/profile`, updates)
-  return data
+async function updateArtisanProfile(artisanId, profileData = {}, profilePhoto = null) {
+  if (profilePhoto) {
+    const fd = new FormData()
+    Object.entries(profileData || {}).forEach(([k, v]) => {
+      if (v !== undefined && v !== null) {
+        if (Array.isArray(v)) fd.append(k, JSON.stringify(v))
+        else fd.append(k, String(v))
+      }
+    })
+    fd.append('profile_photo', profilePhoto)
+    return client().patch(`/api/v1/artisans/${encodeURIComponent(artisanId)}/profile`, fd).then(r => r.data)
+  }
+  return client().patch(`/api/v1/artisans/${encodeURIComponent(artisanId)}/profile`, profileData).then(r => r.data)
 }
 
-export const generateStoryFromBio = async (bio) => {
-  const { data } = await api.post("/generate-story", { bio })
-  return data
+async function getArtisanProducts(artisanId) {
+  return client().get(`/api/v1/artisans/${encodeURIComponent(artisanId)}/products`).then(r => r.data)
+}
+
+async function addArtisanProduct(artisanId, product = {}) {
+  const hasFileImages = Array.isArray(product.images) && product.images.some(i => (typeof File !== 'undefined' && i instanceof File) || (typeof Blob !== 'undefined' && i instanceof Blob))
+  if (hasFileImages) {
+    const fd = new FormData()
+    if (product.images) product.images.forEach(img => fd.append('images', img))
+    ;['name','description','price','category','availability'].forEach(k => {
+      if (product[k] !== undefined && product[k] !== null) fd.append(k, String(product[k]))
+    })
+    return client().post(`/api/v1/artisans/${encodeURIComponent(artisanId)}/products`, fd).then(r => r.data)
+  }
+  return client().post(`/api/v1/artisans/${encodeURIComponent(artisanId)}/products`, product).then(r => r.data)
+}
+
+async function deleteArtisanProduct(artisanId, productId) {
+  return client().delete(`/api/v1/artisans/${encodeURIComponent(artisanId)}/products/${encodeURIComponent(productId)}`).then(r => r.data)
+}
+
+async function getMarketingOutput(artisanId, image = null) {
+  if (image) {
+    const fd = new FormData()
+    fd.append('image', image)
+    return client().post(`/api/v1/artisans/${encodeURIComponent(artisanId)}/marketing`, fd).then(r => r.data)
+  }
+  return client().post(`/api/v1/artisans/${encodeURIComponent(artisanId)}/marketing`, {}).then(r => r.data)
+}
+
+// ---- Marketing ----
+async function generateProductDescription(body) {
+  return client().post('/api/v1/product-description/generate', body).then(r => r.data)
+}
+
+async function generatePoster(image, productName = null) {
+  const fd = new FormData()
+  fd.append('image', image)
+  if (productName) fd.append('product_name', productName)
+  return client().post('/api/v1/poster/generate', fd).then(r => r.data)
+}
+
+// ---- Events ----
+async function findEvents(params = {}) {
+  return client().get('/api/v1/events/find', { params }).then(r => r.data)
+}
+
+async function getAllEvents(params = {}) {
+  return client().get('/api/v1/events/').then(r => r.data)
+}
+
+// ---- Assistant ----
+async function assistantChat(chatReq) {
+  return client().post('/api/v1/assistant/chat', chatReq).then(r => r.data)
+}
+
+// ---- Profile ----
+async function generateStoryFromBio() {
+  return client().get('/api/v1/generate-story').then(r => r.data)
+}
+
+const api = {
+  setBaseUrl,
+  setToken,
+  clearToken,
+
+  health,
+
+  signup,
+  login,
+  logout,
+  getCurrentUser,
+
+  getArtisans,
+  getArtisansBySkill,
+  getArtisansByLocation,
+  getArtisan,
+  updateArtisanProfile,
+  getArtisanProducts,
+  addArtisanProduct,
+  deleteArtisanProduct,
+  getMarketingOutput,
+
+  generateProductDescription,
+  generatePoster,
+
+  getAllEvents,
+  findEvents,
+
+  assistantChat,
+
+  generateStoryFromBio,
 }
 
 export default api

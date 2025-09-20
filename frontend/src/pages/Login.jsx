@@ -1,5 +1,5 @@
 import React, { useState } from "react"
-import { login, signup, getCurrentUser } from "@/lib/api"
+import api from "../lib/api"
 
 const Login = () => {
   const [isSignup, setIsSignup] = useState(false)
@@ -24,13 +24,13 @@ const Login = () => {
     try {
       if (isSignup) {
         // signup requires extra fields
-        await signup({ email, password, skill, location, bio })
+        await api.signup({ email, password, skill, location, bio })
       } else {
-        await login({ email, password })
+        await api.login({ email, password })
       }
 
       // fetch logged-in user
-      const userData = await getCurrentUser()
+      const userData = await api.getCurrentUser()
       setUser(userData)
 
       // reset form
