@@ -14,6 +14,7 @@ class PyObjectId(ObjectId):
 			raise ValueError("Invalid ObjectId")
 		return ObjectId(v)
 
+
 class ProductInDB(BaseModel):
 	id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
 	artisan_id: PyObjectId
@@ -23,6 +24,7 @@ class ProductInDB(BaseModel):
 	category: Optional[str] = None
 	images: Optional[List[str]] = []
 	availability: bool = True
+	product_link: Optional[str] = None
 	created_at: datetime = Field(default_factory=datetime.utcnow)
 	updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -37,3 +39,4 @@ class ProductCreate(BaseModel):
 	category: Optional[str] = None
 	images: Optional[List[str]] = []
 	availability: Optional[bool] = True
+	product_link: Optional[str] = None

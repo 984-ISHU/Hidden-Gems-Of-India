@@ -56,3 +56,61 @@ async def find_events(
                 matching_events.append(serialize_event(event))
 
     return matching_events
+
+async def find_events_by_date_range(
+    start_date: str,
+    end_date: Optional[str] = None,
+    location: Optional[str] = None,
+    db_instance: Optional[AsyncIOMotorDatabase] = None
+) -> List[dict]:
+    """
+    Find events based on start time and end time, with optional location filter.
+    Returns events that overlap with the given date range and optionally match location.
+    """
+    dbi = db_instance or db
+    
+    try:
+        query_start = datetime.fromisoformat(start_date).date()
+        query_end = datetime.fromisoformat(end_date).date() if end_date else query_start
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD.")
+    
+    # Fetch all events and filter by date overlap
+    events_cursor = dbi["events"].find({})
+    events = await events_cursor.to_list(length=1000)
+    
+    matching_events = []
+    for event in events:
+        start = event.get("Event Start Date")
+        end = event.get("Event End Date")
+        venue = event.get("Venue of Event", "")
+        
+        try:
+            event_start = datetime.fromisoformat(start).date() if start else None
+            event_end = datetime.fromisoformat(end).date() if end else None
+        except Exception:
+            continue
+        
+        # Check if event dates overlap with query range
+        if event_start and event_end:
+            # Events overlap if: event_start <= query_end and event_end >= query_start
+            if event_start <= query_end and event_end >= query_start:
+                # If location is provided, also check location match
+                if location:
+                    if fuzzy_match(location, venue):
+                        matching_events.append(serialize_event(event))
+                else:
+                    matching_events.append(serialize_event(event))
+    
+    return matching_events
+
+async def get_all_events(db_instance: Optional[AsyncIOMotorDatabase] = None) -> List[dict]:
+    """
+    Get all events from the database.
+    """
+    dbi = db_instance or db
+    
+    events_cursor = dbi["events"].find({})
+    events = await events_cursor.to_list(length=1000)
+    
+    return [serialize_event(event) for event in events]

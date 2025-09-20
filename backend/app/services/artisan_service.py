@@ -111,6 +111,7 @@ class ArtisanService:
             "category": product_data.get("category"),
             "images": product_data.get("images", []),
             "availability": product_data.get("availability", True),
+            "product_link": product_data.get("product_link") or "https://example.com/product/" + user_id,
             "created_at": datetime.utcnow(),
             "updated_at": datetime.utcnow()
         }
