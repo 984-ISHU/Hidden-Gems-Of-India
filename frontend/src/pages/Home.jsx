@@ -207,7 +207,7 @@ export default function HiddenGemsIndia() {
           </div>
           <div className="hidden md:block">
             <img
-              src="/api/placeholder/200/200"
+              src="/public/hero-artisan.png"
               alt="Artisan crafting"
               className="w-48 h-48 object-contain"
             />
