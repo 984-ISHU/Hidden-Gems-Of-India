@@ -247,77 +247,21 @@ async function generatePoster(image, productName = null) {
 
 // ---- Events ----
 async function findEvents(params = {}) {
-  try {
-    const response = await client().get('/api/v1/events/find', { params })
-    console.log("Events API response:", response.data)
-    // Backend returns {results: [], count: number}
-    return response.data.results || []
-  } catch (error) {
-    console.error("Error fetching events:", error)
-    throw error
-  }
+  return client().get('/api/v1/events/find', { params }).then(r => r.data)
 }
 
-async function getAllEvents() {
-  try {
-    const response = await client().get('/api/v1/events/')
-    console.log("All events API response:", response.data)
-    // Backend returns {results: [], count: number}
-    return response.data.results || []
-  } catch (error) {
-    console.error("Error fetching all events:", error)
-    throw error
-  }
-}
-
-async function findEventsByDateRange(startDate, endDate = null, location = null) {
-  try {
-    const params = { start_date: startDate }
-    if (endDate) params.end_date = endDate
-    if (location) params.location = location
-    
-    const response = await client().get('/api/v1/events/by-date-range', { params })
-    console.log("Date range events API response:", response.data)
-    // Backend returns {results: [], count: number}
-    return response.data.results || []
-  } catch (error) {
-    console.error("Error fetching events by date range:", error)
-    throw error
-  }
+async function getAllEvents(params = {}) {
+  return client().get('/api/v1/events/').then(r => r.data)
 }
 
 // ---- Assistant ----
 async function assistantChat(chatReq) {
-  try {
-    console.log("Sending chat request:", chatReq)
-    const response = await client().post('/api/v1/assistant/chat', {
-      query: chatReq.query,
-      top_k: chatReq.top_k || 3
-    })
-    console.log("Chat response received:", response.data)
-    return response.data
-  } catch (error) {
-    console.error("Assistant chat error:", error)
-    throw error
-  }
+  return client().post('/api/v1/assistant/chat', chatReq).then(r => r.data)
 }
 
 // ---- Profile ----
-async function generateStoryFromBio(artisanId, extraInfo = "") {
-  try {
-    const params = { artisan_id: artisanId }
-    if (extraInfo.trim()) {
-      params.extra_info = extraInfo
-    }
-    
-    console.log("Generating story with params:", params)
-    const response = await client().get('/api/v1/generate-story', { params })
-    console.log("Story generation response:", response.data)
-    return response.data
-  } catch (error) {
-    console.error("Story generation error:", error)
-    throw error
-  }
+async function generateStoryFromBio() {
+  return client().get('/api/v1/generate-story').then(r => r.data)
 }
 
 const api = {
@@ -353,7 +297,6 @@ const api = {
 
   getAllEvents,
   findEvents,
-  findEventsByDateRange,
 
   assistantChat,
 
