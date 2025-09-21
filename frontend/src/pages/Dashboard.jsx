@@ -43,9 +43,17 @@ const Dashboard = () => {
   const [chatHistory, setChatHistory] = useState([])
   const [loadingChat, setLoadingChat] = useState(false)
   const [showChat, setShowChat] = useState(false)
+  const [showRetrievedDocs, setShowRetrievedDocs] = useState(false)
 
   // Events display
   const [showEvents, setShowEvents] = useState(false)
+  const [eventFilter, setEventFilter] = useState({ location: "", date: "", dateRange: false })
+
+  // Story Generator
+  const [showStoryGenerator, setShowStoryGenerator] = useState(false)
+  const [storyExtraInfo, setStoryExtraInfo] = useState("")
+  const [generatedStory, setGeneratedStory] = useState(null)
+  const [loadingStory, setLoadingStory] = useState(false)
 
   // Fetch products
   useEffect(() => {
@@ -67,10 +75,21 @@ const Dashboard = () => {
     const fetchEvents = async () => {
       setLoadingEvents(true)
       try {
+        // Try to get events by location first, fallback to all events
         const data = await api.findEvents({ location: "India" })
-        setEvents(data)
-      } catch {
-        setEvents([])
+        console.log("Events fetched:", data)
+        setEvents(Array.isArray(data) ? data : [])
+      } catch (err) {
+        console.error("Error fetching events:", err)
+        // If location-based search fails, try to get all events
+        try {
+          const allEvents = await api.getAllEvents()
+          console.log("All events fetched as fallback:", allEvents)
+          setEvents(Array.isArray(allEvents) ? allEvents : [])
+        } catch (fallbackErr) {
+          console.error("Error fetching all events:", fallbackErr)
+          setEvents([])
+        }
       }
       setLoadingEvents(false)
     }
@@ -162,6 +181,88 @@ const Dashboard = () => {
     }
   }
 
+  // Helper function to check if an event matches current filters
+  const matchesEventFilter = (event) => {
+    const eventLocation = event["Venue of Event"]?.toLowerCase() || ""
+    const eventStartDate = event["Event Start Date"]
+    
+    // Location filter
+    if (eventFilter.location.trim()) {
+      const locationSearch = eventFilter.location.toLowerCase()
+      if (!eventLocation.includes(locationSearch)) {
+        return false
+      }
+    }
+    
+    // Date filter
+    if (eventFilter.date) {
+      const filterDate = new Date(eventFilter.date)
+      const startDate = new Date(eventStartDate)
+      const endDate = new Date(event["Event End Date"])
+      
+      if (eventFilter.dateRange) {
+        // Event should start on or after the filter date
+        return startDate >= filterDate
+      } else {
+        // Event should be active on the filter date (date falls within event period)
+        return filterDate >= startDate && filterDate <= endDate
+      }
+    }
+    
+    return true
+  }
+
+  // Filter events
+  const handleFilterEvents = async () => {
+    setLoadingEvents(true)
+    try {
+      let filteredEvents = []
+      
+      if (eventFilter.dateRange && eventFilter.date) {
+        // Use date range filtering
+        filteredEvents = await api.findEventsByDateRange(
+          eventFilter.date,
+          null,
+          eventFilter.location || null
+        )
+      } else {
+        // Use regular location/date filtering
+        const params = {}
+        if (eventFilter.location.trim()) params.location = eventFilter.location
+        if (eventFilter.date) params.date = eventFilter.date
+        
+        if (Object.keys(params).length > 0) {
+          filteredEvents = await api.findEvents(params)
+        } else {
+          filteredEvents = await api.getAllEvents()
+        }
+      }
+      
+      console.log("Filtered events:", filteredEvents)
+      setEvents(Array.isArray(filteredEvents) ? filteredEvents : [])
+    } catch (err) {
+      console.error("Error filtering events:", err)
+      setEvents([])
+    }
+    setLoadingEvents(false)
+  }
+
+  // Story Generator
+  const handleGenerateStory = async () => {
+    setLoadingStory(true)
+    try {
+      console.log("Generating story for artisan:", artisanId)
+      const result = await api.generateStoryFromBio(artisanId, storyExtraInfo)
+      console.log("Story generation result:", result)
+      setGeneratedStory(result)
+    } catch (err) {
+      console.error("Story generation error:", err)
+      const errorMessage = err.response?.data?.detail || err.message || "Failed to generate story"
+      setGeneratedStory({ error: errorMessage })
+    }
+    setLoadingStory(false)
+  }
+
   // Cleanup blob URLs when component unmounts or poster changes
   useEffect(() => {
     return () => {
@@ -182,15 +283,32 @@ const Dashboard = () => {
         query: chatInput,
         top_k: 5
       }
+      console.log("Sending chat request:", chatRequest)
       const res = await api.assistantChat(chatRequest)
+      console.log("Chat response received:", res)
+      console.log("Retrieved documents:", res.retrieved)
+      
+      // Handle the response structure from ChatResponse model
+      const answer = res.answer || res.content || "No answer provided."
+      const retrieved = Array.isArray(res.retrieved) ? res.retrieved : []
+      
+      console.log("Processed answer:", answer)
+      console.log("Processed retrieved docs count:", retrieved.length)
+      
+      const assistantMessage = {
+        role: "assistant",
+        content: answer,
+        retrieved: retrieved,
+        query: res.query || chatInput
+      }
+      
+      setChatHistory((prev) => [...prev, assistantMessage])
+    } catch (err) {
+      console.error("Chat error:", err)
+      const errorMessage = err.response?.data?.detail || err.message || "Sorry, I couldn't fetch an answer."
       setChatHistory((prev) => [
         ...prev,
-        { role: "assistant", content: res.answer || "No answer." },
-      ])
-    } catch {
-      setChatHistory((prev) => [
-        ...prev,
-        { role: "assistant", content: "Sorry, I couldn't fetch an answer." },
+        { role: "assistant", content: `Error: ${errorMessage}` },
       ])
     }
     setChatInput("")
@@ -363,7 +481,7 @@ const Dashboard = () => {
         )}
 
         {/* Action Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           {/* Create Ads Card */}
           <div 
             className="h-48 rounded-lg shadow-xl cursor-pointer transform hover:scale-105 transition-all p-6 flex flex-col justify-between"
@@ -417,6 +535,20 @@ const Dashboard = () => {
             </h3>
             <div className="text-white text-sm opacity-90">
               Generate professional marketing posters for your products
+            </div>
+          </div>
+
+          {/* Story Generator Card */}
+          <div 
+            className="h-48 rounded-lg shadow-xl cursor-pointer transform hover:scale-105 transition-all p-6 flex flex-col justify-between"
+            style={{ background: 'linear-gradient(135deg, #E67E22 0%, #D35400 100%)' }}
+            onClick={() => setShowStoryGenerator(!showStoryGenerator)}
+          >
+            <h3 className="text-white font-bold text-xl" style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.3)' }}>
+              STORY MAKER
+            </h3>
+            <div className="text-white text-sm opacity-90">
+              Generate compelling artisan stories using AI
             </div>
           </div>
         </div>
@@ -520,39 +652,92 @@ const Dashboard = () => {
         {/* Chat Bot Modal */}
         {showChat && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 h-96 flex flex-col">
+            <div className="bg-white rounded-lg p-6 w-full max-w-4xl mx-4 h-[80vh] flex flex-col">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-bold">Govt. Schemes Chatbot (GenAI)</h3>
+                <div className="flex items-center gap-4">
+                  <h3 className="text-xl font-bold">Govt. Schemes Chatbot (GenAI)</h3>
+                  <button
+                    onClick={() => setShowRetrievedDocs(!showRetrievedDocs)}
+                    className="bg-gray-500 hover:bg-gray-600 text-white px-3 py-1 rounded text-sm"
+                  >
+                    {showRetrievedDocs ? "Hide Sources" : "Show Sources"}
+                  </button>
+                </div>
                 <button
-                  onClick={() => setShowChat(false)}
+                  onClick={() => {
+                    setShowChat(false)
+                    setChatHistory([])
+                    setShowRetrievedDocs(false)
+                  }}
                   className="text-gray-500 hover:text-gray-700 text-xl"
                 >
                   ×
                 </button>
               </div>
+              
               <div className="flex-1 overflow-y-auto mb-4 p-4 border rounded-lg bg-gray-50">
                 {chatHistory.length === 0 && (
                   <div className="text-gray-500 text-sm">
-                    Ask about any government scheme for artisans.
+                    Ask about any government scheme for artisans. I can help you find information about subsidies, loans, training programs, and more.
                   </div>
                 )}
                 {chatHistory.map((msg, idx) => (
-                  <div
-                    key={idx}
-                    className={`mb-2 p-2 rounded ${
-                      msg.role === "user"
-                        ? "bg-blue-100 text-blue-800 ml-8"
-                        : "bg-green-100 text-green-800 mr-8"
-                    }`}
-                  >
-                    <b>{msg.role === "user" ? "You" : "Bot"}:</b> {msg.content}
+                  <div key={idx} className="mb-4">
+                    <div
+                      className={`p-3 rounded-lg ${
+                        msg.role === "user"
+                          ? "bg-blue-100 text-blue-800 ml-8"
+                          : "bg-green-100 text-green-800 mr-8"
+                      }`}
+                    >
+                      <div className="font-semibold mb-1">
+                        {msg.role === "user" ? "You" : "Assistant"}
+                      </div>
+                      <div className="whitespace-pre-wrap">{msg.content}</div>
+                    </div>
+                    
+                    {/* Show retrieved documents for assistant responses */}
+                    {msg.role === "assistant" && msg.retrieved && msg.retrieved.length > 0 && showRetrievedDocs && (
+                      <div className="mt-2 mr-8">
+                        <div className="text-xs font-semibold text-gray-600 mb-2">
+                          📚 Knowledge Sources ({msg.retrieved.length} documents):
+                        </div>
+                        <div className="space-y-2">
+                          {msg.retrieved.map((doc, docIdx) => (
+                            <div key={doc._id || doc.id || docIdx} className="bg-gray-100 p-2 rounded text-xs">
+                              <div className="flex justify-between items-start mb-1">
+                                <span className="font-medium">Source {docIdx + 1}</span>
+                                <span className="text-gray-500">Score: {doc.score?.toFixed(3) || 'N/A'}</span>
+                              </div>
+                              <div className="text-gray-700">
+                                {doc.text && doc.text.length > 200 
+                                  ? doc.text.substring(0, 200) + "..." 
+                                  : doc.text || "No content available"}
+                              </div>
+                              {doc._id && (
+                                <div className="text-gray-500 text-xs mt-1">
+                                  ID: {doc._id.substring(0, 8)}...
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
+                
+                {loadingChat && (
+                  <div className="flex items-center justify-center py-4">
+                    <div className="text-blue-600">Thinking...</div>
+                  </div>
+                )}
               </div>
+              
               <div className="flex gap-2">
                 <input
                   className="flex-1 border rounded-lg px-3 py-2"
-                  placeholder="Type your question..."
+                  placeholder="Ask about government schemes, subsidies, loans, training programs..."
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
                   disabled={loadingChat}
@@ -569,8 +754,8 @@ const Dashboard = () => {
                     e.preventDefault()
                     handleChatSubmit(e)
                   }}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg"
-                  disabled={loadingChat}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-semibold"
+                  disabled={loadingChat || !chatInput.trim()}
                 >
                   {loadingChat ? "..." : "Send"}
                 </button>
@@ -582,29 +767,226 @@ const Dashboard = () => {
         {/* Events Modal */}
         {showEvents && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-96 overflow-y-auto">
+            <div className="bg-white rounded-lg p-6 w-full max-w-3xl mx-4 max-h-[80vh] overflow-y-auto">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-bold">Upcoming Events</h3>
+                <h3 className="text-xl font-bold">Events & Exhibitions</h3>
                 <button
-                  onClick={() => setShowEvents(false)}
+                  onClick={() => {
+                    setShowEvents(false)
+                    setEventFilter({ location: "", date: "", dateRange: false })
+                  }}
                   className="text-gray-500 hover:text-gray-700 text-xl"
                 >
                   ×
                 </button>
               </div>
+
+              {/* Event Filters */}
+              <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                <h4 className="font-semibold mb-3">Filter Events</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Location
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g., Mumbai, Delhi, India"
+                      value={eventFilter.location}
+                      onChange={(e) => setEventFilter(prev => ({ ...prev, location: e.target.value }))}
+                      className="w-full border rounded-lg px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Date
+                    </label>
+                    <input
+                      type="date"
+                      value={eventFilter.date}
+                      onChange={(e) => setEventFilter(prev => ({ ...prev, date: e.target.value }))}
+                      className="w-full border rounded-lg px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <button
+                      onClick={handleFilterEvents}
+                      disabled={loadingEvents}
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold text-sm"
+                    >
+                      {loadingEvents ? "Searching..." : "Search Events"}
+                    </button>
+                  </div>
+                </div>
+                <div className="mt-2">
+                  <label className="flex items-center text-sm text-gray-600">
+                    <input
+                      type="checkbox"
+                      checked={eventFilter.dateRange}
+                      onChange={(e) => setEventFilter(prev => ({ ...prev, dateRange: e.target.checked }))}
+                      className="mr-2"
+                    />
+                    Use date as start date for range search
+                  </label>
+                </div>
+              </div>
+
+              {/* Events Summary */}
+              {!loadingEvents && events.length > 0 && (
+                <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="bg-blue-50 p-4 rounded-lg text-center">
+                    <div className="text-2xl font-bold text-blue-600">{events.length}</div>
+                    <div className="text-sm text-blue-800">Total Events</div>
+                  </div>
+                  <div className="bg-green-50 p-4 rounded-lg text-center">
+                    <div className="text-2xl font-bold text-green-600">
+                      {events.filter(e => new Date(e["Event Start Date"]) > new Date()).length}
+                    </div>
+                    <div className="text-sm text-green-800">Upcoming Events</div>
+                  </div>
+                  <div className="bg-orange-50 p-4 rounded-lg text-center">
+                    <div className="text-2xl font-bold text-orange-600">
+                      {events.filter(e => new Date(e["Event Apply Closing Date"]) > new Date()).length}
+                    </div>
+                    <div className="text-sm text-orange-800">Open for Applications</div>
+                  </div>
+                  <div className="bg-purple-50 p-4 rounded-lg text-center">
+                    <div className="text-2xl font-bold text-purple-600">
+                      {events.reduce((sum, e) => sum + parseInt(e["Total no. of Stalls"] || 0), 0)}
+                    </div>
+                    <div className="text-sm text-purple-800">Total Stalls</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Events List */}
               {loadingEvents ? (
-                <p>Loading events...</p>
+                <div className="flex items-center justify-center py-8">
+                  <div className="text-blue-600">Searching events...</div>
+                </div>
               ) : events.length > 0 ? (
                 <div className="space-y-4">
-                  {events.map((event) => (
-                    <div key={event.id} className="border rounded-lg p-4">
-                      <h4 className="font-semibold text-lg">{event.name}</h4>
-                      <p className="text-gray-600">{event.location} | {event.date}</p>
-                    </div>
-                  ))}
+                  <div className="text-sm text-gray-600 mb-4">
+                    Found {events.length} event{events.length !== 1 ? 's' : ''} • Gandhi Shilp Bazaar Exhibitions
+                  </div>
+                  {events.map((event, index) => {
+                    const startDate = new Date(event["Event Start Date"]).toLocaleDateString('en-IN', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric'
+                    })
+                    const endDate = new Date(event["Event End Date"]).toLocaleDateString('en-IN', {
+                      day: 'numeric',
+                      month: 'short', 
+                      year: 'numeric'
+                    })
+                    const applyDate = new Date(event["Event Apply Closing Date"]).toLocaleDateString('en-IN', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric'
+                    })
+                    const isUpcoming = new Date(event["Event Start Date"]) > new Date()
+                    const isApplicationOpen = new Date(event["Event Apply Closing Date"]) > new Date()
+                    
+                    return (
+                      <div key={event._id || index} className="border-2 rounded-xl p-5 hover:shadow-lg transition-all bg-gradient-to-r from-white to-blue-50">
+                        <div className="flex justify-between items-start mb-3">
+                          <div className="flex-1">
+                            <h4 className="font-bold text-lg text-blue-900 mb-1">
+                              {event["Event Title"]}
+                            </h4>
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                                isUpcoming ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
+                              }`}>
+                                {isUpcoming ? '🔮 Upcoming' : '📅 Past Event'}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                {event["Event Types"]}
+                              </span>
+                            </div>
+                          </div>
+                          {event._event_url && (
+                            <a
+                              href={event._event_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg text-sm font-semibold"
+                            >
+                              View Details
+                            </a>
+                          )}
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <div className="flex items-center text-gray-700">
+                              <span className="text-blue-600 mr-2">📍</span>
+                              <span className="font-medium">{event["Venue of Event"]}</span>
+                            </div>
+                            
+                            <div className="flex items-center text-gray-700">
+                              <span className="text-green-600 mr-2">📅</span>
+                              <span>{startDate} - {endDate}</span>
+                            </div>
+                            
+                            <div className="flex items-center text-gray-700">
+                              <span className="text-orange-600 mr-2">🏪</span>
+                              <span>{event["Total no. of Stalls"]} Stalls Available</span>
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <div className="flex items-center text-gray-700">
+                              <span className="text-red-600 mr-2">⏰</span>
+                              <div>
+                                <div className="text-sm">Application Deadline:</div>
+                                <div className={`font-medium ${isApplicationOpen ? 'text-green-600' : 'text-red-600'}`}>
+                                  {applyDate}
+                                  {isApplicationOpen && <span className="ml-1 text-xs">(Open)</span>}
+                                  {!isApplicationOpen && <span className="ml-1 text-xs">(Closed)</span>}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {isUpcoming && isApplicationOpen && (
+                          <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                            <div className="flex items-center text-green-800">
+                              <span className="mr-2">✅</span>
+                              <span className="font-semibold text-sm">Applications Open! Apply before {applyDate}</span>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {isUpcoming && !isApplicationOpen && (
+                          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                            <div className="flex items-center text-red-800">
+                              <span className="mr-2">❌</span>
+                              <span className="font-semibold text-sm">Application deadline passed on {applyDate}</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               ) : (
-                <p className="text-gray-500">No events found.</p>
+                <div className="text-center py-12">
+                  <div className="text-6xl mb-4">🎪</div>
+                  <p className="text-gray-500 mb-4 text-lg">No Gandhi Shilp Bazaar events found matching your criteria.</p>
+                  <p className="text-gray-400 mb-6 text-sm">Try adjusting your search filters or browse all available events.</p>
+                  <button
+                    onClick={() => {
+                      setEventFilter({ location: "", date: "", dateRange: false })
+                      handleFilterEvents()
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold"
+                  >
+                    Show All Events
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -711,6 +1093,145 @@ const Dashboard = () => {
                       }}
                     >
                       Generate New Poster
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Story Generator Modal */}
+        {showStoryGenerator && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-bold">AI Story Generator</h3>
+                <button
+                  onClick={() => {
+                    setShowStoryGenerator(false)
+                    setStoryExtraInfo("")
+                    setGeneratedStory(null)
+                  }}
+                  className="text-gray-500 hover:text-gray-700 text-xl"
+                >
+                  ×
+                </button>
+              </div>
+
+              {!generatedStory && !loadingStory && (
+                <div className="space-y-4">
+                  <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
+                    <div className="flex items-start">
+                      <span className="text-orange-600 mr-2 text-lg">✨</span>
+                      <div>
+                        <h4 className="font-semibold text-orange-800">Create Your Artisan Story</h4>
+                        <p className="text-orange-700 text-sm mt-1">
+                          I'll create an inspiring story about your craft journey using your profile information. 
+                          Add any extra details you'd like to include!
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Additional Information (Optional)
+                    </label>
+                    <textarea
+                      placeholder="Tell me more about your craft journey, achievements, inspirations, or special techniques you'd like to highlight in your story..."
+                      value={storyExtraInfo}
+                      onChange={(e) => setStoryExtraInfo(e.target.value)}
+                      rows={4}
+                      className="w-full border rounded-lg px-3 py-2 resize-none"
+                    />
+                    <div className="text-xs text-gray-500 mt-1">
+                      Leave blank to generate a story using only your existing profile information.
+                    </div>
+                  </div>
+
+                  <button
+                    className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-3 rounded-lg font-semibold w-full"
+                    onClick={handleGenerateStory}
+                  >
+                    Generate My Artisan Story
+                  </button>
+                </div>
+              )}
+
+              {loadingStory && (
+                <div className="flex items-center justify-center py-12">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mx-auto mb-4"></div>
+                    <div className="text-orange-600 font-semibold">Crafting your story...</div>
+                    <div className="text-gray-500 text-sm mt-1">This may take a few moments</div>
+                  </div>
+                </div>
+              )}
+
+              {generatedStory && (
+                <div className="space-y-4">
+                  {generatedStory.error ? (
+                    <div className="bg-red-50 border border-red-200 p-4 rounded-lg">
+                      <div className="flex items-center text-red-800">
+                        <span className="mr-2">❌</span>
+                        <div>
+                          <h4 className="font-semibold">Error Generating Story</h4>
+                          <p className="text-sm mt-1">{generatedStory.error}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="bg-green-50 border border-green-200 p-4 rounded-lg">
+                        <div className="flex items-center text-green-800 mb-2">
+                          <span className="mr-2">📖</span>
+                          <h4 className="font-semibold">Your Artisan Story</h4>
+                        </div>
+                      </div>
+                      
+                      <div className="bg-gray-50 p-6 rounded-lg border">
+                        <div className="prose prose-sm max-w-none">
+                          <div className="whitespace-pre-wrap text-gray-800 leading-relaxed">
+                            {generatedStory.story}
+                          </div>
+                        </div>
+                      </div>
+
+                      {generatedStory.original_context && (
+                        <details className="bg-blue-50 border border-blue-200 rounded-lg">
+                          <summary className="p-3 cursor-pointer text-blue-800 font-medium">
+                            View Profile Information Used
+                          </summary>
+                          <div className="px-3 pb-3 text-sm text-blue-700 whitespace-pre-wrap border-t border-blue-200 mt-2 pt-2">
+                            {generatedStory.original_context}
+                          </div>
+                        </details>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex gap-2">
+                    <button
+                      className="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-semibold"
+                      onClick={() => {
+                        if (generatedStory.story) {
+                          navigator.clipboard.writeText(generatedStory.story)
+                          alert("Story copied to clipboard!")
+                        }
+                      }}
+                      disabled={generatedStory.error}
+                    >
+                      Copy Story
+                    </button>
+                    <button
+                      className="flex-1 bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg font-semibold"
+                      onClick={() => {
+                        setGeneratedStory(null)
+                        setStoryExtraInfo("")
+                      }}
+                    >
+                      Generate New Story
                     </button>
                   </div>
                 </div>
