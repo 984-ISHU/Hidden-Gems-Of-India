@@ -48,6 +48,41 @@ async def get_artisan(user_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.post("/create")
+async def create_artisan_profile(user_id: str):
+    """Create a default artisan profile for a user"""
+    try:
+        artisan = await ArtisanService.create_artisan_profile(user_id)
+        return artisan
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/by-email/{email}")
+async def get_artisan_by_email(email: str):
+    """Get a single artisan by email"""
+    try:
+        artisan = await ArtisanService.get_artisan_by_email(email)
+        if not artisan:
+            raise HTTPException(status_code=404, detail="Artisan not found")
+        return artisan
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/create-by-email")
+async def create_artisan_profile_by_email(email: str):
+    """Create a default artisan profile for a user by email"""
+    try:
+        artisan = await ArtisanService.create_artisan_profile_by_email(email)
+        return artisan
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.patch("/{artisan_id}/profile")
 async def update_artisan_profile(artisan_id: str, updates: ArtisanProfileUpdate):
     """Update artisan profile"""
@@ -87,6 +122,29 @@ async def delete_artisan_product(artisan_id: str, product_id: str):
     """Delete a product for an artisan"""
     try:
         result = await ArtisanService.delete_artisan_product(artisan_id, product_id)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Email-based product endpoints
+@router.get("/by-email/{email}/products")
+async def get_artisan_products_by_email(email: str):
+    """Get all products for an artisan by email"""
+    try:
+        products = await ArtisanService.get_artisan_products_by_email(email)
+        return products
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/by-email/{email}/products")
+async def add_artisan_product_by_email(email: str, product: ProductCreate):
+    """Add a new product for an artisan by email"""
+    try:
+        result = await ArtisanService.add_artisan_product_by_email(email, product.dict(exclude_unset=True))
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

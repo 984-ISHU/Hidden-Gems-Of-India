@@ -1,9 +1,13 @@
 import React, { useEffect, useState } from "react"
 import { ChevronLeft, ChevronRight, User, Plus } from "lucide-react"
 import api from "../lib/api"
+import { useAuth } from "../lib/AuthContext"
 
 const Dashboard = () => {
-  const artisanId = "12345"
+  const { user } = useAuth()
+  const [currentArtisan, setCurrentArtisan] = useState(null)
+  const [artisanId, setArtisanId] = useState(null) // This will be the user_id for marketing/story APIs
+  const [userEmail, setUserEmail] = useState(null) // This will be the email for product APIs
 
   // Product states
   const [products, setProducts] = useState([])
@@ -55,20 +59,59 @@ const Dashboard = () => {
   const [generatedStory, setGeneratedStory] = useState(null)
   const [loadingStory, setLoadingStory] = useState(false)
 
+  // Get current user's artisan profile
+  useEffect(() => {
+    const getArtisan = async () => {
+      if (!user || !user.email) {
+        console.log("No authenticated user found")
+        return
+      }
+      
+      setUserEmail(user.email)
+      
+      try {
+        console.log("Getting artisan for user email:", user.email)
+        const artisan = await api.getCurrentUserArtisan()
+        setCurrentArtisan(artisan)
+        setArtisanId(artisan.user_id) // Use artisan's user_id for marketing/story APIs
+        console.log("Found artisan:", artisan)
+      } catch (err) {
+        console.error("Failed to get artisan profile:", err)
+        
+        // If user doesn't have an artisan profile, try to create one
+        try {
+          console.log("Creating artisan profile for user email:", user.email)
+          const newArtisan = await api.createArtisanProfileByEmail(user.email)
+          setCurrentArtisan(newArtisan)
+          setArtisanId(newArtisan.user_id) // Use the new artisan's user_id
+          console.log("Created new artisan profile:", newArtisan)
+        } catch (createErr) {
+          console.error("Failed to create artisan profile:", createErr)
+          // Fallback: we'll handle this in individual functions
+          console.log("Will handle API calls individually")
+        }
+      }
+    }
+    
+    getArtisan()
+  }, [user])
+
   // Fetch products
   useEffect(() => {
     const fetchProducts = async () => {
+      if (!userEmail) return
+      
       setLoadingProducts(true)
       try {
-        const data = await api.getArtisanProducts(artisanId)
+        const data = await api.getArtisanProductsByEmail(userEmail)
         setProducts(data)
       } catch (err) {
-        console.error("Failed to load products")
+        console.error("Failed to load products:", err)
       }
       setLoadingProducts(false)
     }
     fetchProducts()
-  }, [artisanId])
+  }, [userEmail])
 
   // Fetch events
   useEffect(() => {
@@ -108,9 +151,20 @@ const Dashboard = () => {
   // Add product
   const handleAddProduct = async (e) => {
     e.preventDefault()
+    
+    if (!userEmail) {
+      alert("User email not available. Please refresh the page.")
+      return
+    }
+    
     try {
-      const product = await api.addArtisanProduct(artisanId, newProduct)
-      setProducts((prev) => [...prev, product])
+      const product = await api.addArtisanProductByEmail(userEmail, newProduct)
+      console.log("Product added successfully:", product)
+      
+      // Refresh the products list
+      const data = await api.getArtisanProductsByEmail(userEmail)
+      setProducts(data)
+      
       setNewProduct({ 
         name: "", 
         description: "", 
@@ -122,7 +176,8 @@ const Dashboard = () => {
       })
       setShowAddForm(false)
     } catch (err) {
-      console.error("Failed to add product")
+      console.error("Failed to add product:", err)
+      alert("Failed to add product: " + (err.response?.data?.detail || err.message))
     }
   }
 
@@ -132,6 +187,12 @@ const Dashboard = () => {
     try {
       const prompt = customPrompt || marketingPrompt || "handcrafted artisan products"
       const image = customImage || marketingImage
+      
+      if (!artisanId) {
+        throw new Error("Artisan ID not available. Please refresh the page.")
+      }
+      
+      console.log("Using artisan ID for marketing:", artisanId)
       const output = await api.getMarketingOutput(artisanId, prompt, image)
       setMarketingOutput(output)
     } catch (err) {
@@ -251,6 +312,10 @@ const Dashboard = () => {
   const handleGenerateStory = async () => {
     setLoadingStory(true)
     try {
+      if (!artisanId) {
+        throw new Error("Artisan ID not available. Please refresh the page.")
+      }
+      
       console.log("Generating story for artisan:", artisanId)
       const result = await api.generateStoryFromBio(artisanId, storyExtraInfo)
       console.log("Story generation result:", result)
@@ -324,6 +389,22 @@ const Dashboard = () => {
       visible.push(products[index])
     }
     return visible
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #2D5A87 0%, #1E3A5F 100%)' }}>
+        <div className="text-white text-xl">Please log in to access the dashboard</div>
+      </div>
+    )
+  }
+
+  if (!userEmail) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #2D5A87 0%, #1E3A5F 100%)' }}>
+        <div className="text-white text-xl">Loading artisan profile...</div>
+      </div>
+    )
   }
 
   return (

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import api from "../lib/api"
-import { saveSession, getUser } from "../lib/auth"
+import { useAuth } from "../lib/AuthContext"
 
 const Login = () => {
   const [isSignup, setIsSignup] = useState(false)
@@ -10,16 +10,14 @@ const Login = () => {
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
-  const [user, setUser] = useState(null)
   const navigate = useNavigate()
+  const { user, login, logout } = useAuth()
 
   useEffect(() => {
-    const existingUser = getUser()
-    if (existingUser) {
-      setUser(existingUser)
+    if (user) {
       navigate("/dashboard")
     }
-  }, [navigate])
+  }, [user, navigate])
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -48,19 +46,12 @@ const Login = () => {
 
       // Proceed with login
       console.log('Attempting login with:', email);
-      const tokenData = await api.login({ 
+      await login({ 
         email: email.trim(), 
         password 
       });
 
-      if (!tokenData?.access_token) {
-        throw new Error("Login failed - no token received");
-      }
-
-      // Get user data
-      const userData = await api.getCurrentUser();
-      saveSession(tokenData.access_token, userData);
-      setUser(userData);
+      console.log('Login successful, redirecting to dashboard');
       navigate("/dashboard");
 
     } catch (err) {
@@ -73,9 +64,8 @@ const Login = () => {
 
   const handleLogout = async () => {
     try {
-      await api.logout()
-      clearSession()
-      setUser(null)
+      await logout()
+      navigate("/")
     } catch (err) {
       console.error("Logout error:", err)
     }

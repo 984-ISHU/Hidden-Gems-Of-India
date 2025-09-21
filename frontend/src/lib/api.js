@@ -116,6 +116,26 @@ async function getArtisan(userId) {
   return client().get(`/api/v1/artisans/${encodeURIComponent(userId)}`).then(r => r.data)
 }
 
+async function getCurrentUserArtisan() {
+  const user = await getCurrentUser()
+  if (!user || !user.email) {
+    throw new Error('No authenticated user found')
+  }
+  return getArtisanByEmail(user.email)
+}
+
+async function getArtisanByEmail(email) {
+  return client().get(`/api/v1/artisans/by-email/${encodeURIComponent(email)}`).then(r => r.data)
+}
+
+async function createArtisanProfile(userId) {
+  return client().post(`/api/v1/artisans/create?user_id=${encodeURIComponent(userId)}`).then(r => r.data)
+}
+
+async function createArtisanProfileByEmail(email) {
+  return client().post(`/api/v1/artisans/create-by-email?email=${encodeURIComponent(email)}`).then(r => r.data)
+}
+
 async function updateArtisanProfile(artisanId, profileData = {}, profilePhoto = null) {
   if (profilePhoto) {
     const fd = new FormData()
@@ -146,6 +166,23 @@ async function addArtisanProduct(artisanId, product = {}) {
     return clientFormData().post(`/api/v1/artisans/${encodeURIComponent(artisanId)}/products`, fd).then(r => r.data)
   }
   return client().post(`/api/v1/artisans/${encodeURIComponent(artisanId)}/products`, product).then(r => r.data)
+}
+
+async function getArtisanProductsByEmail(email) {
+  return client().get(`/api/v1/artisans/by-email/${encodeURIComponent(email)}/products`).then(r => r.data)
+}
+
+async function addArtisanProductByEmail(email, product = {}) {
+  const hasFileImages = Array.isArray(product.images) && product.images.some(i => (typeof File !== 'undefined' && i instanceof File) || (typeof Blob !== 'undefined' && i instanceof Blob))
+  if (hasFileImages) {
+    const fd = new FormData()
+    if (product.images) product.images.forEach(img => fd.append('images', img))
+    ;['name','description','price','category','availability'].forEach(k => {
+      if (product[k] !== undefined && product[k] !== null) fd.append(k, String(product[k]))
+    })
+    return clientFormData().post(`/api/v1/artisans/by-email/${encodeURIComponent(email)}/products`, fd).then(r => r.data)
+  }
+  return client().post(`/api/v1/artisans/by-email/${encodeURIComponent(email)}/products`, product).then(r => r.data)
 }
 
 async function deleteArtisanProduct(artisanId, productId) {
@@ -299,9 +336,15 @@ const api = {
   getArtisansBySkill,
   getArtisansByLocation,
   getArtisan,
+  getArtisanByEmail,
+  getCurrentUserArtisan,
+  createArtisanProfile,
+  createArtisanProfileByEmail,
   updateArtisanProfile,
   getArtisanProducts,
+  getArtisanProductsByEmail,
   addArtisanProduct,
+  addArtisanProductByEmail,
   deleteArtisanProduct,
   getMarketingOutput,
 
