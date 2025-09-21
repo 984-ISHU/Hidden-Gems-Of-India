@@ -7,13 +7,13 @@ app = FastAPI(title="Hidden Gems of India API", version="1.0.0")
 
 
 origins = [
-    "https://gen-mark.vercel.app",  # ✅ Your deployed frontend
-    "http://localhost:5173",           # Optional for local testing
+    "http://127.0.0.1:5173", 
+    "http://localhost:5173",
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,  # Use your defined origins list
     allow_credentials=True,
     allow_methods=["*"],     # Allow all methods (GET, POST, etc.)
     allow_headers=["*"],     # Allow all headers

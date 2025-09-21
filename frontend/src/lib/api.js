@@ -26,13 +26,19 @@ function clearToken() {
 function client() {
   const instance = axios.create({
     baseURL: BASE_URL,
+    withCredentials: true, // Important for cookies
+    headers: {
+      'Content-Type': 'application/json',
+    }
   })
+
   instance.interceptors.request.use(config => {
     if (accessToken) {
-      config.headers['Authorization'] = `Bearer ${accessToken}`
+      config.headers.Authorization = `Bearer ${accessToken}`
     }
     return config
   })
+
   return instance
 }
 
@@ -43,12 +49,25 @@ async function health() {
 
 // ---- Auth ----
 async function signup(data) {
-  return client().post('/api/v1/auth/signup', data).then(r => r.data)
+  try {
+    const response = await client().post('/api/v1/auth/signup', {
+      username: data.username,
+      email: data.email,
+      password: data.password,
+      user_type: data.user_type || 'artisan'
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Signup error details:', error.response?.data);
+    throw error;
+  }
 }
 
 async function login(data) {
   const res = await client().post('/api/v1/auth/login', data)
-  if (res.data?.access_token) setToken(res.data.access_token)
+  if (res.data?.access_token) {
+    setToken(res.data.access_token)
+  }
   return res.data
 }
 
