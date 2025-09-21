@@ -97,11 +97,14 @@ async def delete_artisan_product(artisan_id: str, product_id: str):
 @router.post("/{artisan_id}/marketing")
 async def get_marketing_output(
     artisan_id: str,
-    prompt: str = Query(..., description="Prompt for marketing content"),
+    prompt: str = Query(None, description="Prompt for marketing content"),
     image: UploadFile = File(None)
 ):
     """Generate marketing content for an artisan, considering image if provided"""
     try:
+        if not prompt:
+            raise HTTPException(status_code=400, detail="Prompt is required")
+        
         image_bytes = await image.read() if image else None
         result = await MarketingService.generate_marketing_content(artisan_id, prompt, image_bytes)
         return result

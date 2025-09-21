@@ -42,6 +42,24 @@ function client() {
   return instance
 }
 
+// Helper function for FormData requests
+function clientFormData() {
+  const instance = axios.create({
+    baseURL: BASE_URL,
+    withCredentials: true,
+    // Don't set Content-Type for FormData - let browser handle it
+  })
+
+  instance.interceptors.request.use(config => {
+    if (accessToken) {
+      config.headers.Authorization = `Bearer ${accessToken}`
+    }
+    return config
+  })
+
+  return instance
+}
+
 // ---- Health ----
 async function health() {
   return client().get('/health').then(r => r.data)
@@ -108,7 +126,7 @@ async function updateArtisanProfile(artisanId, profileData = {}, profilePhoto = 
       }
     })
     fd.append('profile_photo', profilePhoto)
-    return client().patch(`/api/v1/artisans/${encodeURIComponent(artisanId)}/profile`, fd).then(r => r.data)
+    return clientFormData().patch(`/api/v1/artisans/${encodeURIComponent(artisanId)}/profile`, fd).then(r => r.data)
   }
   return client().patch(`/api/v1/artisans/${encodeURIComponent(artisanId)}/profile`, profileData).then(r => r.data)
 }
@@ -125,7 +143,7 @@ async function addArtisanProduct(artisanId, product = {}) {
     ;['name','description','price','category','availability'].forEach(k => {
       if (product[k] !== undefined && product[k] !== null) fd.append(k, String(product[k]))
     })
-    return client().post(`/api/v1/artisans/${encodeURIComponent(artisanId)}/products`, fd).then(r => r.data)
+    return clientFormData().post(`/api/v1/artisans/${encodeURIComponent(artisanId)}/products`, fd).then(r => r.data)
   }
   return client().post(`/api/v1/artisans/${encodeURIComponent(artisanId)}/products`, product).then(r => r.data)
 }
@@ -134,13 +152,21 @@ async function deleteArtisanProduct(artisanId, productId) {
   return client().delete(`/api/v1/artisans/${encodeURIComponent(artisanId)}/products/${encodeURIComponent(productId)}`).then(r => r.data)
 }
 
-async function getMarketingOutput(artisanId, image = null) {
+async function getMarketingOutput(artisanId, prompt, image = null) {
+  if (!prompt) {
+    throw new Error('Prompt is required for marketing content generation')
+  }
+  
+  const params = { prompt }
+  
   if (image) {
     const fd = new FormData()
     fd.append('image', image)
-    return client().post(`/api/v1/artisans/${encodeURIComponent(artisanId)}/marketing`, fd).then(r => r.data)
+    return clientFormData().post(`/api/v1/artisans/${encodeURIComponent(artisanId)}/marketing`, fd, { params }).then(r => r.data)
   }
-  return client().post(`/api/v1/artisans/${encodeURIComponent(artisanId)}/marketing`, {}).then(r => r.data)
+  
+  // For text-only requests, we still need to send as POST with query params
+  return client().post(`/api/v1/artisans/${encodeURIComponent(artisanId)}/marketing`, {}, { params }).then(r => r.data)
 }
 
 // ---- Marketing ----
@@ -151,8 +177,35 @@ async function generateProductDescription(body) {
 async function generatePoster(image, productName = null) {
   const fd = new FormData()
   fd.append('image', image)
-  if (productName) fd.append('product_name', productName)
-  return client().post('/api/v1/poster/generate', fd).then(r => r.data)
+  if (productName && productName.trim()) {
+    fd.append('product_name', productName.trim())
+  }
+  
+  console.log("Making POST request to /api/v1/poster/generate with image:", image.name)
+  
+  try {
+    const response = await clientFormData().post('/api/v1/poster/generate', fd, {
+      responseType: 'blob',
+      timeout: 30000 // 30 second timeout
+    })
+    
+    console.log("Response received:", response.status, response.headers)
+    
+    // Ensure we have a valid blob
+    if (!response.data || !(response.data instanceof Blob)) {
+      throw new Error(`Invalid response: expected Blob, got ${typeof response.data}`)
+    }
+    
+    if (response.data.size === 0) {
+      throw new Error("Received empty blob response")
+    }
+    
+    console.log("Blob received successfully, size:", response.data.size)
+    return response.data
+  } catch (error) {
+    console.error("Error in generatePoster:", error.response?.status, error.message)
+    throw error
+  }
 }
 
 // ---- Events ----
