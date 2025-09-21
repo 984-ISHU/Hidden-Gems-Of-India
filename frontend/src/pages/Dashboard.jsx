@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from "react"
-import { ChevronLeft, ChevronRight, User, Plus } from "lucide-react"
+import { ChevronLeft, ChevronRight, User, Plus, LogOut } from "lucide-react"
 import api from "../lib/api"
+import { useNavigate } from "react-router-dom"
 import { useAuth } from "../lib/AuthContext"
 
 const Dashboard = () => {
-  const { user } = useAuth()
   const [currentArtisan, setCurrentArtisan] = useState(null)
   const [artisanId, setArtisanId] = useState(null) // This will be the user_id for marketing/story APIs
   const [userEmail, setUserEmail] = useState(null) // This will be the email for product APIs
+  const { user, login, logout } = useAuth()
 
   // Product states
   const [products, setProducts] = useState([])
@@ -58,18 +59,28 @@ const Dashboard = () => {
   const [generatedStory, setGeneratedStory] = useState(null)
   const [loadingStory, setLoadingStory] = useState(false)
 
+  const navigate = useNavigate();
+
+  // Logout handler
+    const handleLogout = async () => {
+    try {
+      await logout()
+      navigate("/")
+    } catch (err) {
+      console.error("Logout error:", err)
+    }
+  }
+
   // Get current user's artisan profile
   useEffect(() => {
     const getArtisan = async () => {
-      if (!user || !user.email) {
+      if (!userEmail) {
         console.log("No authenticated user found")
         return
       }
       
-      setUserEmail(user.email)
-      
       try {
-        console.log("Getting artisan for user email:", user.email)
+        console.log("Getting artisan for user email:", userEmail)
         const artisan = await api.getCurrentUserArtisan()
         setCurrentArtisan(artisan)
         setArtisanId(artisan.user_id) // Use artisan's user_id for marketing/story APIs
@@ -79,8 +90,8 @@ const Dashboard = () => {
         
         // If user doesn't have an artisan profile, try to create one
         try {
-          console.log("Creating artisan profile for user email:", user.email)
-          const newArtisan = await api.createArtisanProfileByEmail(user.email)
+          console.log("Creating artisan profile for user email:", userEmail)
+          const newArtisan = await api.createArtisanProfileByEmail(userEmail)
           setCurrentArtisan(newArtisan)
           setArtisanId(newArtisan.user_id) // Use the new artisan's user_id
           console.log("Created new artisan profile:", newArtisan)
@@ -93,7 +104,7 @@ const Dashboard = () => {
     }
     
     getArtisan()
-  }, [user])
+  }, [userEmail])
 
   // Fetch products
   useEffect(() => {
@@ -362,22 +373,6 @@ const Dashboard = () => {
     return visible
   }
 
-  if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #2D5A87 0%, #1E3A5F 100%)' }}>
-        <div className="text-white text-xl">Please log in to access the dashboard</div>
-      </div>
-    )
-  }
-
-  if (!userEmail) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #2D5A87 0%, #1E3A5F 100%)' }}>
-        <div className="text-white text-xl">Loading artisan profile...</div>
-      </div>
-    )
-  }
-
   return (
     <div className="min-h-screen" style={{ background: 'linear-gradient(135deg, #2D5A87 0%, #1E3A5F 100%)' }}>
       {/* Header */}
@@ -385,8 +380,21 @@ const Dashboard = () => {
         <h1 className="text-2xl font-bold text-yellow-300" style={{ fontFamily: 'serif' }}>
           Artisan Dashboard
         </h1>
-        <div className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center">
-          <User className="w-6 h-6 text-gray-600" />
+        <div className="flex items-center gap-3">
+          <button
+            className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center hover:ring-2 hover:ring-yellow-400 transition"
+            onClick={() => navigate("/profile")}
+            title="Go to Profile"
+          >
+            <User className="w-6 h-6 text-gray-600" />
+          </button>
+          <button
+            className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center hover:ring-2 hover:ring-red-400 transition"
+            onClick={handleLogout}
+            title="Log out"
+          >
+            <LogOut className="w-6 h-6 text-gray-600" />
+          </button>
         </div>
       </header>
 
