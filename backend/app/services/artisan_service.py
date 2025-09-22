@@ -168,13 +168,20 @@ class ArtisanService:
     async def get_artisan_products_by_email(email: str) -> List[Dict[str, Any]]:
         """Get all products for an artisan by email"""
         # First find the artisan by email
+        print(f"[DEBUG] get_artisan_products_by_email: received email={email}")
         artisan = await db["artisans"].find_one({"email": email})
         if not artisan:
+            print(f"[DEBUG] No artisan found for email: {email}")
             raise ValueError("Artisan not found")
-        
-        user_id = artisan["user_id"]
+
+        user_id = artisan.get("user_id")
+        print(f"[DEBUG] Artisan found. email={email}, user_id={user_id}, artisan_id={artisan.get('id')}")
         products = []
-        async for product in db["products"].find({"artisan_user_id": user_id}):
+        cursor = db["products"].find({"artisan_user_id": user_id})
+        found_any = False
+        async for product in cursor:
+            found_any = True
+            print(f"[DEBUG] Found product for user_id={user_id}: {product}")
             product["id"] = str(product["_id"])
             product.pop("_id", None)
             product["artisan_user_id"] = str(product["artisan_user_id"])
@@ -188,6 +195,9 @@ class ArtisanService:
                         ts = int(product[date_field]["$date"]["$numberLong"]) / 1000
                         product[date_field] = datetime.utcfromtimestamp(ts).isoformat()
             products.append(product)
+        if not found_any:
+            print(f"[DEBUG] No products found for artisan_user_id={user_id}")
+        print(f"[DEBUG] Returning {len(products)} products for artisan_user_id={user_id}")
         return products
     
     @staticmethod

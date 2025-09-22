@@ -10,6 +10,13 @@ const Dashboard = () => {
   const [userEmail, setUserEmail] = useState(null) // This will be the email for product APIs
   const { user, login, logout } = useAuth()
 
+  // Ensure userEmail is set from the authenticated user
+  useEffect(() => {
+    if (user && user.email) {
+      setUserEmail(user.email)
+    }
+  }, [user])
+
   // Product states
   const [products, setProducts] = useState([])
   const [currentProductIndex, setCurrentProductIndex] = useState(0)
@@ -112,13 +119,16 @@ const Dashboard = () => {
       if (!userEmail) return
       
       setLoadingProducts(true)
+      console.log("[DEBUG] Fetching products for userEmail:", userEmail);
       try {
-        const data = await api.getArtisanProductsByEmail(userEmail)
-        setProducts(data)
+        const data = await api.getArtisanProductsByEmail(userEmail);
+        console.log("[DEBUG] Products fetched:", data);
+        setProducts(data);
       } catch (err) {
-        console.error("Failed to load products:", err)
+        console.log("[DEBUG] Error fetching products:", err);
+        setProducts([]);
       }
-      setLoadingProducts(false)
+      setLoadingProducts(false);
     }
     fetchProducts()
   }, [userEmail])
@@ -365,8 +375,10 @@ const Dashboard = () => {
   // Get visible products for carousel
   const getVisibleProducts = () => {
     if (products.length === 0) return []
+    // Only show up to the number of available products
+    const visibleCount = Math.min(3, products.length)
     const visible = []
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < visibleCount; i++) {
       const index = (currentProductIndex + i) % products.length
       visible.push(products[index])
     }
@@ -394,6 +406,9 @@ const Dashboard = () => {
             title="Log out"
           >
             <LogOut className="w-6 h-6 text-gray-600" />
+          </button>
+          <button onClick={handleLogout} style={{ padding: '8px 16px', background: '#e53e3e', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+            Logout
           </button>
         </div>
       </header>
