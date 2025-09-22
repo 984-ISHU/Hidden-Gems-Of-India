@@ -247,6 +247,10 @@ async function generatePoster(image, productName = null) {
 
 // ---- Events ----
 async function findEvents(params = {}) {
+  // If no params, don't send location by default (fetch all events)
+  if (!params || Object.keys(params).length === 0) {
+    return client().get('/api/v1/events/find').then(r => r.data)
+  }
   return client().get('/api/v1/events/find', { params }).then(r => r.data)
 }
 

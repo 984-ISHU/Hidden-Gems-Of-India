@@ -58,7 +58,17 @@ const Dashboard = () => {
 
   // Events display
   const [showEvents, setShowEvents] = useState(false)
-  const [eventFilter, setEventFilter] = useState({ location: "", date: "", dateRange: false })
+  const [eventFilter, setEventFilter] = useState({ location: null, date: null, dateRange: false })
+  // Event counts
+  const now = new Date()
+  const upcomingEvents = events.filter(e => {
+    const start = new Date(e["Event Start Date"] || e.date || e.start_date)
+    return start >= now
+  })
+  const pastEvents = events.filter(e => {
+    const end = new Date(e["Event End Date"] || e.date || e.end_date || e["Event Start Date"])
+    return end < now
+  })
 
   // Story Generator
   const [showStoryGenerator, setShowStoryGenerator] = useState(false)
@@ -138,8 +148,9 @@ const Dashboard = () => {
     const fetchEvents = async () => {
       setLoadingEvents(true)
       try {
-        const data = await api.findEvents({ location: "India" })
-        setEvents(data)
+        const data = await api.findEvents({})
+        // The backend returns { results: [...], count: N }
+        setEvents(Array.isArray(data.results) ? data.results : [])
       } catch {
         setEvents([])
       }
@@ -287,29 +298,19 @@ const Dashboard = () => {
     setLoadingEvents(true)
     try {
       let filteredEvents = []
-      
-      if (eventFilter.dateRange && eventFilter.date) {
-        // Use date range filtering
-        filteredEvents = await api.findEventsByDateRange(
-          eventFilter.date,
-          null,
-          eventFilter.location || null
-        )
-      } else {
-        // Use regular location/date filtering
-        const params = {}
-        if (eventFilter.location.trim()) params.location = eventFilter.location
-        if (eventFilter.date) params.date = eventFilter.date
-        
-        if (Object.keys(params).length > 0) {
-          filteredEvents = await api.findEvents(params)
-        } else {
-          filteredEvents = await api.getAllEvents()
-        }
+      const params = {}
+      if (eventFilter.location && eventFilter.location.trim()) {
+        params.location = eventFilter.location.trim()
+      }
+      if (eventFilter.date) {
+        params.date = eventFilter.date
       }
       
+      const data = await api.findEvents(params)
+      filteredEvents = Array.isArray(data.results) ? data.results : []
+      
       console.log("Filtered events:", filteredEvents)
-      setEvents(Array.isArray(filteredEvents) ? filteredEvents : [])
+      setEvents(filteredEvents)
     } catch (err) {
       console.error("Error filtering events:", err)
       setEvents([])
@@ -775,9 +776,9 @@ const Dashboard = () => {
         {/* Events Modal */}
         {showEvents && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-96 overflow-y-auto">
+            <div className="bg-white rounded-lg p-6 w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-bold">Upcoming Events</h3>
+                <h3 className="text-xl font-bold">Events</h3>
                 <button
                   onClick={() => setShowEvents(false)}
                   className="text-gray-500 hover:text-gray-700 text-xl"
@@ -785,14 +786,124 @@ const Dashboard = () => {
                   ×
                 </button>
               </div>
+              
+              {/* Event Filter Section */}
+              <div className="mb-4 p-4 bg-gray-50 rounded-lg">
+                <h4 className="font-semibold mb-3">Filter Events</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Location
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g., Mumbai, Delhi"
+                      value={eventFilter.location || ""}
+                      onChange={(e) => setEventFilter({ ...eventFilter, location: e.target.value })}
+                      className="w-full border rounded-lg px-3 py-2"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Date
+                    </label>
+                    <input
+                      type="date"
+                      value={eventFilter.date || ""}
+                      onChange={(e) => setEventFilter({ ...eventFilter, date: e.target.value })}
+                      className="w-full border rounded-lg px-3 py-2"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <button
+                      onClick={handleFilterEvents}
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold"
+                    >
+                      Apply Filters
+                    </button>
+                  </div>
+                </div>
+                <div className="mt-2 flex gap-2">
+                  <button
+                    onClick={() => {
+                      setEventFilter({ location: null, date: null, dateRange: false })
+                      // Fetch all events again
+                      const fetchAll = async () => {
+                        setLoadingEvents(true)
+                        try {
+                          const data = await api.findEvents({})
+                          setEvents(Array.isArray(data.results) ? data.results : [])
+                        } catch {
+                          setEvents([])
+                        }
+                        setLoadingEvents(false)
+                      }
+                      fetchAll()
+                    }}
+                    className="text-sm text-gray-600 hover:text-gray-800 underline"
+                  >
+                    Clear Filters
+                  </button>
+                </div>
+              </div>
+
+              <div className="mb-4 flex gap-4 text-sm">
+                <span className="font-semibold">Total: {events.length}</span>
+                <span className="text-green-700">Upcoming: {upcomingEvents.length}</span>
+                <span className="text-gray-500">Past: {pastEvents.length}</span>
+              </div>
+              
               {loadingEvents ? (
                 <p>Loading events...</p>
               ) : events.length > 0 ? (
                 <div className="space-y-4">
-                  {events.map((event) => (
-                    <div key={event.id} className="border rounded-lg p-4">
-                      <h4 className="font-semibold text-lg">{event.name}</h4>
-                      <p className="text-gray-600">{event.location} | {event.date}</p>
+                  {events.map((event, index) => (
+                    <div key={event._id || index} className="border rounded-lg p-4 bg-white shadow-sm">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <h4 className="font-semibold text-lg text-blue-800 mb-2">
+                            {event["Event Title"] || event.title || "Untitled Event"}
+                          </h4>
+                          <p className="text-sm text-gray-600 mb-1">
+                            <span className="font-medium">Type:</span> {event["Event Types"] || "N/A"}
+                          </p>
+                          <p className="text-sm text-gray-600 mb-1">
+                            <span className="font-medium">Venue:</span> {event["Venue of Event"] || event.location || "N/A"}
+                          </p>
+                          <p className="text-sm text-gray-600 mb-1">
+                            <span className="font-medium">Stalls:</span> {event["Total no. of Stalls"] || "N/A"}
+                          </p>
+                        </div>
+                        <div>
+                          <div className="space-y-2">
+                            <p className="text-sm">
+                              <span className="font-medium text-green-700">Start:</span> {event["Event Start Date"] || "N/A"}
+                            </p>
+                            <p className="text-sm">
+                              <span className="font-medium text-red-700">End:</span> {event["Event End Date"] || "N/A"}
+                            </p>
+                            <p className="text-sm">
+                              <span className="font-medium text-orange-700">Apply By:</span> {
+                                event["Event Apply Closing Date"] 
+                                  ? new Date(event["Event Apply Closing Date"]).toLocaleDateString()
+                                  : "N/A"
+                              }
+                            </p>
+                          </div>
+                          {event._event_url && (
+                            <div className="mt-3">
+                              <a 
+                                href={event._event_url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="inline-block bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm"
+                              >
+                                View Details
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>
