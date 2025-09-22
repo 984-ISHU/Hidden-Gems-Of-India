@@ -264,8 +264,16 @@ async function assistantChat(chatReq) {
 }
 
 // ---- Profile ----
-async function generateStoryFromBio() {
-  return client().get('/api/v1/generate-story').then(r => r.data)
+async function generateStoryFromBio(artisanId, extraInfo = "") {
+  const params = {}
+  // Allow any non-empty, space-free string as user_id
+  if (artisanId && typeof artisanId === 'string' && artisanId.trim() !== '' && !artisanId.includes(' ')) {
+    params.artisan_id = artisanId
+  } else {
+    throw new Error('Invalid artisanId passed to generateStoryFromBio. Must be a non-empty user_id string without spaces.')
+  }
+  if (extraInfo && extraInfo.trim()) params.extra_info = extraInfo.trim()
+  return client().get('/api/v1/generate-story', { params }).then(r => r.data)
 }
 
 const api = {

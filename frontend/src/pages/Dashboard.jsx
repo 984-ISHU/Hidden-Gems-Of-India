@@ -100,7 +100,13 @@ const Dashboard = () => {
         console.log("Getting artisan for user email:", userEmail)
         const artisan = await api.getCurrentUserArtisan()
         setCurrentArtisan(artisan)
-        setArtisanId(artisan.user_id) // Use artisan's user_id for marketing/story APIs
+        if (artisan && artisan.user_id && typeof artisan.user_id === 'string' && !artisan.user_id.toLowerCase().includes('bio')) {
+          setArtisanId(artisan.user_id) // Use artisan's user_id for marketing/story APIs
+          console.log("Set artisanId to user_id:", artisan.user_id)
+        } else {
+          setArtisanId(null)
+          console.warn("Artisan user_id is invalid, not setting artisanId:", artisan.user_id)
+        }
         console.log("Found artisan:", artisan)
       } catch (err) {
         console.error("Failed to get artisan profile:", err)
@@ -110,7 +116,13 @@ const Dashboard = () => {
           console.log("Creating artisan profile for user email:", userEmail)
           const newArtisan = await api.createArtisanProfileByEmail(userEmail)
           setCurrentArtisan(newArtisan)
-          setArtisanId(newArtisan.user_id) // Use the new artisan's user_id
+          if (newArtisan && newArtisan.user_id && typeof newArtisan.user_id === 'string' && !newArtisan.user_id.toLowerCase().includes('bio')) {
+            setArtisanId(newArtisan.user_id) // Use the new artisan's user_id
+            console.log("Set artisanId to user_id:", newArtisan.user_id)
+          } else {
+            setArtisanId(null)
+            console.warn("New artisan user_id is invalid, not setting artisanId:", newArtisan.user_id)
+          }
           console.log("Created new artisan profile:", newArtisan)
         } catch (createErr) {
           console.error("Failed to create artisan profile:", createErr)

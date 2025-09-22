@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from "react"
+import ReactMarkdown from "react-markdown"
+import { Clipboard } from "lucide-react"
 import { User, Camera, MapPin, Briefcase, BookOpen, Heart, Save, Sparkles, Upload } from "lucide-react"
 import api from "../lib/api"
 
@@ -110,13 +112,14 @@ const Profile = () => {
       setError("Please add a bio first to generate your story")
       return
     }
-    
+    // You need to have the artisan's user_id available here
+    const artisanId = form.user_id || (user && user.user_id) || (user && user.id) || "";
     setIsGeneratingStory(true)
     try {
-      const result = await api.generateStoryFromBio(form.bio)
-      setGeneratedStory(result)
-      // Optionally auto-fill the story field
-      setForm({ ...form, story: result.generated_story })
+  const result = await api.generateStoryFromBio(artisanId, form.bio)
+  setGeneratedStory(result)
+  // Optionally auto-fill the story field
+  setForm({ ...form, story: result.story })
     } catch (err) {
       setError(err.message)
     } finally {
@@ -343,11 +346,27 @@ const Profile = () => {
               {/* Generated Story Display */}
               {generatedStory && (
                 <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg p-4">
-                  <h4 className="font-semibold text-purple-800 mb-2">AI Generated Story</h4>
-                  <p className="text-purple-700 mb-2">{generatedStory.generated_story}</p>
+                  <h4 className="font-semibold text-purple-800 mb-2 flex items-center gap-2">
+                    AI Generated Story
+                    <button
+                      type="button"
+                      title="Copy story to clipboard"
+                      className="ml-2 p-1 rounded hover:bg-purple-100"
+                      onClick={() => {
+                        if (generatedStory.story) {
+                          navigator.clipboard.writeText(generatedStory.story)
+                        }
+                      }}
+                    >
+                      <Clipboard className="w-4 h-4 text-purple-600" />
+                    </button>
+                  </h4>
+                  <div className="prose prose-purple max-w-none mb-2">
+                    <ReactMarkdown>{generatedStory.story || ''}</ReactMarkdown>
+                  </div>
                   <div className="text-sm text-purple-600">
-                    Generated on: {new Date(generatedStory.generated_at).toLocaleString()} | 
-                    Words: {generatedStory.word_count}
+                    Generated on: {generatedStory.generated_at ? new Date(generatedStory.generated_at).toLocaleString() : new Date().toLocaleString()} | 
+                    Words: {generatedStory.story ? generatedStory.story.split(/\s+/).filter(Boolean).length : 0}
                   </div>
                 </div>
               )}
