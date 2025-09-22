@@ -9,6 +9,7 @@ app = FastAPI(title="Hidden Gems of India API", version="1.0.0")
 origins = [
     "http://localhost:5173",
     "https://hidden-gems-of-india.vercel.app",
+    "https://hidden-gems-of-india.onrender.com"
 ]
 
 app.add_middleware(
