@@ -27,14 +27,10 @@ async def startup_db_client():
     except Exception as e:
         print(f"Database connection failed at startup: {e}")
 
-@app.get("/health")
-async def health_check():
-    # Optional: ping MongoDB to confirm connection
-    try:
-        await db.command("ping")
-        return {"status": "ok", "db": "connected"}
-    except Exception as e:
-        return {"status": "error", "db": str(e)}
+   
+@app.api_route("/", methods=["GET", "HEAD"])
+async def root_health():
+    return {"status": "ok"}
 
 # Register routers with a common prefix
 api_prefix = "/api/v1"
